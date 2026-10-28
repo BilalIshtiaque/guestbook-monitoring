@@ -4,6 +4,10 @@ import * as random from "@pulumi/random";
 import * as fs from "fs";
 import * as path from "path";
 
+/**
+ * Installs kube-prometheus-stack, exposes Grafana through a LoadBalancer Service with a generated
+ * admin password, and provisions Grafana dashboards from JSON files.
+ */
 export class MonitoringStack extends pulumi.ComponentResource {
     public readonly namespace: pulumi.Output<string>;
     public readonly grafanaUrl: pulumi.Output<string>;

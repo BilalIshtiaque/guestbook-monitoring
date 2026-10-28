@@ -7,6 +7,8 @@ import * as pulumi from "@pulumi/pulumi";
 /**
  * ServiceDeployment is an example abstraction that uses a class to fold together the common pattern of a
  * Kubernetes Deployment and its associated Service object.
+ *
+ * When `metrics` is set, it also adds an exporter sidecar, an internal metrics Service and a ServiceMonitor.
  */
 export class ServiceDeployment extends pulumi.ComponentResource {
     public readonly deployment: k8s.apps.v1.Deployment;
@@ -63,6 +65,7 @@ export class ServiceDeployment extends pulumi.ComponentResource {
         }, { parent: this });
 
         if (args.metrics) {
+            // Separate ClusterIP Service so metrics are never exposed on a public LoadBalancer.
             const metricsLabels = { ...labels, metrics: "true" };
             this.metricsService = new k8s.core.v1.Service(`${name}-metrics`, {
                 metadata: { name: `${name}-metrics`, labels: metricsLabels },
