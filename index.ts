@@ -6,7 +6,9 @@ import * as pulumi from "@pulumi/pulumi";
 
 const config = new pulumi.Config();
 
-const monitoring = new MonitoringStack("monitoring");
+const monitoring = new MonitoringStack("monitoring", {
+    dashboards: ["dashboards/guestbook.json"],
+});
 
 const redisExporter: k8sjs.MetricsExporterArgs = {
     image: "oliver006/redis_exporter:v1.95.0",

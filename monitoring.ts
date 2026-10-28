@@ -1,6 +1,8 @@
 import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
 import * as random from "@pulumi/random";
+import * as fs from "fs";
+import * as path from "path";
 
 export class MonitoringStack extends pulumi.ComponentResource {
     public readonly namespace: pulumi.Output<string>;
@@ -52,6 +54,17 @@ export class MonitoringStack extends pulumi.ComponentResource {
             },
         }, { parent: this });
 
+        for (const file of args.dashboards ?? []) {
+            const dashboardName = path.basename(file, ".json");
+            new k8s.core.v1.ConfigMap(`${name}-dashboard-${dashboardName}`, {
+                metadata: {
+                    namespace: namespace.metadata.name,
+                    labels: { grafana_dashboard: "1" },
+                },
+                data: { [`${dashboardName}.json`]: fs.readFileSync(file, "utf8") },
+            }, { parent: this });
+        }
+
         const grafanaService = k8s.core.v1.Service.get(
             `${name}-grafana`,
             pulumi.interpolate`${release.status.namespace}/${release.status.name}-grafana`,
@@ -78,4 +91,5 @@ export interface MonitoringStackArgs {
     namespace?: string;
     chartVersion?: string;
     grafanaPort?: number;
+    dashboards?: string[];
 }
