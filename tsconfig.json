@@ -17,6 +17,7 @@
     },
     "files": [
         "index.ts",
-        "k8sjs.ts"
+        "k8sjs.ts",
+        "monitoring.ts"
     ]
 }
