@@ -6,7 +6,7 @@ import * as pulumi from "@pulumi/pulumi";
 const config = new pulumi.Config();
 
 const redisLeader = new k8sjs.ServiceDeployment("redis-leader", {
-    image: "redis",
+    image: "redis:6.0.5",
     ports: [6379],
 });
 

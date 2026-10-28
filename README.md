@@ -1,24 +1,90 @@
-[![Deploy this example with Pulumi](https://www.pulumi.com/images/deploy-with-pulumi/dark.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/tree/master/kubernetes-ts-guestbook/components#gh-light-mode-only)
-[![Deploy this example with Pulumi](https://get.pulumi.com/new/button-light.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/tree/master/kubernetes-ts-guestbook/components#gh-dark-mode-only)
+[![Deploy this example with Pulumi](https://www.pulumi.com/images/deploy-with-pulumi/dark.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/blob/master/kubernetes-ts-guestbook/components/README.md#gh-light-mode-only)
+[![Deploy this example with Pulumi](https://get.pulumi.com/new/button-light.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/blob/master/kubernetes-ts-guestbook/components/README.md#gh-dark-mode-only)
 
-# Simple and component-based Kubernetes Guestbook apps
+# Kubernetes Guestbook (with components)
 
-A port of the standard [Kubernetes Guestbook](https://kubernetes.io/docs/tutorials/stateless-application/guestbook/)
-to Pulumi. This example shows you how to build and deploy a simple, multi-tier web application using Kubernetes and
-Docker, and consists of three components:
+A version of the [Kubernetes Guestbook](https://kubernetes.io/docs/tutorials/stateless-application/guestbook/)
+application using Pulumi. Unlike [the straight port of the original YAML](../simple), this variant
+leverages real code to eliminate boilerplate. A `ServiceDeployment` class is used that combines the common pattern
+of deploying a container image using a Kubernetes `Deployment`, and then scaling it using a `Service`.
 
-* A single-instance Redis master to store guestbook entries
-* Multiple replicated Redis instances to serve reads
-* Multiple web frontend instances
+## Prerequisites
 
-Unlike the original, which is defined in YAML and applied with `kubectl`, this version is authored in TypeScript and deployed with the Pulumi CLI.
+1. [Install Pulumi](https://www.pulumi.com/docs/get-started/install/)
+2. [Configure Kubernetes](https://www.pulumi.com/docs/intro/cloud-providers/kubernetes/setup/)
+3. [Install Node.js](https://www.pulumi.com/docs/intro/languages/javascript/)
 
-There is an [interactive Tutorial available](https://www.pulumi.com/docs/tutorials/kubernetes/guestbook/) for
-this example. If this is your first time using Pulumi for Kubernetes, we recommend starting there.
+## Deploying the example
 
-This directory contains two variants of the Guestbook, each a standalone Pulumi project with its own README:
+1.  Create a new stack:
 
-- [simple/](./simple) — a straight port of the original YAML.
-- [components/](./components) — demonstrates the benefits of using a real language, namely eliminating boilerplate through the use of real component abstractions.
+    ```bash
+    pulumi stack init dev
+    ```
 
-Both variants provision the exact same Kubernetes Guestbook application, but showcase different aspects of Pulumi. Follow the README in whichever sub-directory you choose.
+1.  This example will attempt to expose the Guestbook application to the Internet with a `Service` of
+    type `LoadBalancer`. Since minikube does not support `LoadBalancer`, the Guestbook application
+    already knows to use type `ClusterIP` instead; all you need to do is tell it whether you're
+    deploying to minikube:
+
+    ```bash
+    pulumi config set isMinikube <value>
+    ```
+
+1.  Install dependencies:
+
+    ```bash
+    npm install
+    ```
+
+1.  Deploy the stack:
+
+    ```bash
+    pulumi up
+    ```
+
+    ```
+    Updating (guestbook):
+
+         Type                                Name                      Status
+     +   pulumi:pulumi:Stack                 guestbook-easy-guestbook  created
+     +   ├─ k8sjs:service:ServiceDeployment  redis-leader              created
+     +   │  ├─ kubernetes:apps:Deployment    redis-leader              created
+     +   │  └─ kubernetes:core:Service       redis-leader              created
+     +   ├─ k8sjs:service:ServiceDeployment  frontend                  created
+     +   │  ├─ kubernetes:apps:Deployment    frontend                  created
+     +   │  └─ kubernetes:core:Service       frontend                  created
+     +   └─ k8sjs:service:ServiceDeployment  redis-replica             created
+     +      ├─ kubernetes:apps:Deployment    redis-replica             created
+     +      └─ kubernetes:core:Service       redis-replica             created
+
+    Outputs:
+        frontendIp: "10.105.48.30"
+
+    Resources:
+        + 10 created
+
+    Duration: 21s
+    ```
+
+1.  Open the application in your browser to see the running application. If you're running
+    macOS you can simply run:
+
+    ```bash
+    open $(pulumi stack output frontendIp)
+    ```
+
+    > _Note_: minikube does not support type `LoadBalancer`; if you are deploying to minikube, make sure
+    > to run `kubectl port-forward svc/frontend 8080:80` to forward the cluster port to the local
+    > machine and access the service via `localhost:8080`.
+
+    ![Guestbook in browser](./imgs/guestbook.png)
+
+## Cleaning up
+
+Once you're finished experimenting, you can destroy your stack and remove it to avoid incurring any additional cost:
+
+```bash
+pulumi destroy
+pulumi stack rm
+```
