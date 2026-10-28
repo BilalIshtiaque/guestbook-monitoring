@@ -11,6 +11,8 @@ import * as pulumi from "@pulumi/pulumi";
 export class ServiceDeployment extends pulumi.ComponentResource {
     public readonly deployment: k8s.apps.v1.Deployment;
     public readonly service: k8s.core.v1.Service;
+    public readonly metricsService?: k8s.core.v1.Service;
+    public readonly serviceMonitor?: k8s.apiextensions.CustomResource;
     public readonly ipAddress?: pulumi.Output<string>;
 
     constructor(name: string, args: ServiceDeploymentArgs, opts?: pulumi.ComponentResourceOptions) {
@@ -24,21 +26,32 @@ export class ServiceDeployment extends pulumi.ComponentResource {
             env: [{ name: "GET_HOSTS_FROM", value: "dns" }],
             ports: args.ports && args.ports.map(p => ({ containerPort: p })),
         };
+        const containers: k8stypes.core.v1.Container[] = [container];
+        if (args.metrics) {
+            containers.push({
+                name: "metrics-exporter",
+                image: args.metrics.image,
+                args: args.metrics.args,
+                resources: { requests: { cpu: "10m", memory: "32Mi" } },
+                ports: [{ name: "metrics", containerPort: args.metrics.port }],
+            });
+        }
         this.deployment = new k8s.apps.v1.Deployment(name, {
             spec: {
                 selector: { matchLabels: labels },
                 replicas: args.replicas || 1,
                 template: {
                     metadata: { labels: labels },
-                    spec: { containers: [ container ] },
+                    spec: { containers },
                 },
             },
         }, { parent: this });
 
+
         this.service = new k8s.core.v1.Service(name, {
             metadata: {
                 name: name,
-                labels: this.deployment.metadata.labels,
+                labels: labels,
             },
             spec: {
                 ports: args.ports && args.ports.map(p => ({ port: p, targetPort: p })),
@@ -49,12 +62,40 @@ export class ServiceDeployment extends pulumi.ComponentResource {
             },
         }, { parent: this });
 
+        if (args.metrics) {
+            const metricsLabels = { ...labels, metrics: "true" };
+            this.metricsService = new k8s.core.v1.Service(`${name}-metrics`, {
+                metadata: { name: `${name}-metrics`, labels: metricsLabels },
+                spec: {
+                    selector: labels,
+                    ports: [{ name: "metrics", port: args.metrics.port, targetPort: "metrics" }],
+                },
+            }, { parent: this });
+
+            this.serviceMonitor = new k8s.apiextensions.CustomResource(name, {
+                apiVersion: "monitoring.coreos.com/v1",
+                kind: "ServiceMonitor",
+                metadata: { name, labels },
+                spec: {
+                    selector: { matchLabels: metricsLabels },
+                    endpoints: [{ port: "metrics", interval: args.metrics.interval || "15s" }],
+                },
+            }, { parent: this, dependsOn: opts?.dependsOn });
+        }
+
         if (args.allocateIpAddress) {
             this.ipAddress = args.isMinikube ?
                 this.service.spec.clusterIP :
-                this.service.status.loadBalancer.ingress[0].ip;
+                this.service.status.loadBalancer.ingress[0].apply(i => i.ip || i.hostname);
         }
     }
+}
+
+export interface MetricsExporterArgs {
+    image: string;
+    port: number;
+    args?: string[];
+    interval?: string;
 }
 
 export interface ServiceDeploymentArgs {
@@ -64,4 +105,5 @@ export interface ServiceDeploymentArgs {
     ports?: number[];
     allocateIpAddress?: boolean;
     isMinikube?: boolean;
+    metrics?: MetricsExporterArgs;
 }
